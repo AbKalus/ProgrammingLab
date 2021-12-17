@@ -1,3 +1,7 @@
+from matplotlib import pyplot
+from Class_CSVFile import CSVFile
+from Class_CSVFile import NumericalCSVFile
+
 class Model():
     def fit(self, data):
         #fit non implementato nella classe base
@@ -7,6 +11,7 @@ class Model():
         #predict non implementato nella classe base
         raise NotImplementedError('Metodo non implementato')
 
+    #Metodo che calcola il l'incremento medio di un dataset
     def calc_increment(self, data):
         if data is None:
             raise Exception('Lista vuota')
@@ -21,6 +26,7 @@ class Model():
 
 class IncrementModel(Model):
 
+    #Implmentazione metodo per una predizione
     def predict(self, data):
         prediction = None
         increment = super().calc_increment(data)
@@ -28,27 +34,49 @@ class IncrementModel(Model):
         return prediction
 
 class FitIncrementModel(IncrementModel):
-    
-    def __init__(self):
+
+    def __init__(self, dataset):
         self.global_avg_increment = 0
+        self.dataset = dataset
+        self.dset_len = len(dataset)
 
-    def fit(self, dataset):
-        self.global_avg_increment = super().calc_increment(dataset)  
+    #Metodo per restituire il dataset per il fitting
+    def dataset_to_fit(self):
+        return self.dataset[0: self.dset_len-3]
 
-    def predict(self, data):
+    #Metodo per restituire il dataset per la predizione
+    def dataset_to_predict(self):
+        return self.dataset[self.dset_len-3: self.dset_len]
+
+    #Metodo per aggiungere elemento al dataset
+    def update_dataset(self, new_el):
+        self.dataset.append(new_el)
+        self.dset_len = len(self.dataset)
+    
+    #Metodo per il fitting del dataset originale
+    def fit(self):
+        self.global_avg_increment = super().calc_increment(self.dataset_to_fit())
+
+    #Metodo per una predizione più accurata
+    def predict(self):
+        data = self.dataset_to_predict()
         data_increment = super().calc_increment(data)
         prediction = data[-1] + (self.global_avg_increment + data_increment)/2
         return prediction
 
-list_y = [8, 19, 31, 41]
-list_x = [50, 52, 60]
-x = FitIncrementModel()
-x.fit(list_y)
-print('Predizione: {}'. format(x.predict(list_x)))
 
-data = [8,19,31,41,50,52,60]
-prediction = 68
-from matplotlib import pyplot
-pyplot.plot(data + [prediction], color='tab:red')
-pyplot.plot(data, color='tab:blue')
+shampoo_file = NumericalCSVFile('shampoo_sales.csv')
+shampoo_dataset = shampoo_file.get_data()
+official_dataset = shampoo_file.get_only_column_n(1)
+tmp_dataset = official_dataset.copy()
+shampoo_model = FitIncrementModel(tmp_dataset)
+tmp = []
+for i in range(20):
+    shampoo_model.fit()
+    prediction = shampoo_model.predict()
+    shampoo_model.update_dataset(prediction)
+    tmp.append(prediction)
+    
+pyplot.plot(official_dataset + tmp, color='tab:red')
+pyplot.plot(official_dataset, color='tab:blue')
 pyplot.show()
