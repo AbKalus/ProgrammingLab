@@ -78,7 +78,6 @@ class CSVFile:
             for line in file_rd:
                 #Divido la riga in colonne delimitandola con il carattere ','
                 line_elements = line.split(',')
-                
                 #Controllo per saltare la lettura dell'intestazione
                 if line_elements[0] != 'date':
                     #elimino il carattere '\n' dall'ultima colonna
@@ -88,6 +87,7 @@ class CSVFile:
             file_rd.close()
         else:
             raise ExamException('Il file non è leggibile o non esiste')
+        
         return file_lst
     
 class CSVTimeSeriesFile(CSVFile):
@@ -134,17 +134,19 @@ class CSVTimeSeriesFile(CSVFile):
             lista di liste contente i dati del file CSV
         '''
         csv_lst = super().get_data()
+        lst_of_lsts = []
         if csv_lst is not empty:
-            lst_of_lsts = []
-            dct = {}
+
+            
             #Filtro la lista aggiungedo mantendendo solo i valori con l'anno convertibile in intero
             for line in csv_lst:
-                if isinstance(line[1], int) and  line[1] > 0:
-                    try:
-                        int(line[0].split('-')[0])
+                try:
+                    int(line[0].split('-')[0])
+                    line[1] = int(line[1])
+                    if line[1] > 0:
                         lst_of_lsts.append(line)
-                    except:
-                        pass
+                except:
+                    pass
             
             dct = {line[0]: line[1] for line in lst_of_lsts}
             
@@ -199,12 +201,12 @@ def compute_avg_monthly_difference(time_series, first_year=None, last_year=None)
     Raises
     ------
     ExamException
-        - se time_series non p una lista
+        - se gli anni non sono stringhe
+        - se l'anno di partenza dell'intervallo è maggiore di quello finale
+        - se time_series non è una lista
         - se time-series è vuota
         - se time_series non è una lista di liste
         - se la lista di liste è completamente vuota
-        - se gli anni non sono stringhe
-        - se l'anno di partenza dell'intervallo è maggiore di quello finale
         - se la lunghezza del dizionario creato non coincide con quella della time_series
         - se ordinando la time_series non coincide con la time_series non ordinata
         - se first_year o last_year oppure entrambi non sono anni presenti nella time_series
@@ -214,6 +216,23 @@ def compute_avg_monthly_difference(time_series, first_year=None, last_year=None)
     list
         la funzione restituisce la lista delle differenze medie mesnili
     '''
+    #Controllo se gli anni sono di tipo corretto
+    if (not(isinstance(first_year, str))) or (not(isinstance(last_year, str))):
+        raise ExamException('Valori first_year = {} e last_year = {} non ammissibili'.format(first_year, last_year))
+    
+    #Converto gli anni in valori numerici e se first year e maggiore alzo un eccezione
+    fy_magg = False
+    
+    try:
+        if int(first_year) > int(last_year):
+           fy_magg = True
+    except:
+        raise ExamException('Valori first_year = {} e last_year = {} non convertibili in numeri'.format(first_year, last_year))
+    
+    #Controllo del flag fy_magg
+    if fy_magg:
+        raise ExamException('L\'anno di partenza dell\'intervallo è maggiore di quello finale')
+    
     #Controllo se time_series è una lista
     if not(isinstance(time_series, list)):
         raise ExamException('Errore time series non è una lista')
@@ -229,22 +248,6 @@ def compute_avg_monthly_difference(time_series, first_year=None, last_year=None)
     #Controllo se la lista di liste è completamente vuota
     if not(any(time_series)):
         raise ExamException('Lista di liste vuote')
-    
-    #Controllo se gli anni sono di tipo corretto
-    if (not(isinstance(first_year, str))) or (not(isinstance(last_year, str))):
-        raise ExamException('Valori first_year = {} e last_year = {} non ammissibili'.format(first_year, last_year))
-    
-    #Converto gli anni in valori numerici e se first year e maggiore alzo un eccezione
-    fy_magg = False
-    try:
-        if int(first_year) > int(last_year):
-           fy_magg = True
-    except:
-        raise ExamException('Valori first_year = {} e last_year = {} non convertibili in numeri'.format(first_year, last_year))
-    
-    #Controllo del flag fy_magg
-    if fy_magg:
-        raise ExamException('L\'anno di partenza dell\'intervallo è maggiore di quello finale')
 
     #Creo un dizionario della lista
     dct = {line[0]: line[1] for line in time_series}
@@ -271,10 +274,10 @@ def compute_avg_monthly_difference(time_series, first_year=None, last_year=None)
     num_fy = int(first_year)
     num_ly = int(last_year)
     
-    #Lista che contiene la differenza tra i mesi 
+    #Lista che contiene la differenza tra i mesi e il numero di differenze calcolate
     diff_lst = []
-        
-    for i in range(1,12):
+    
+    for i in range(1,13):
         str_ym_1 = None
         str_ym_2 = None
         sum_diff = 0
@@ -283,9 +286,15 @@ def compute_avg_monthly_difference(time_series, first_year=None, last_year=None)
             if i in range(10):
                 str_ym_1 = str(year)+'-0'+str(i)
                 str_ym_2 = str((year+1))+'-0'+str(i)
+                while str_ym_2 not in dct and ((num_ly - num_fy)+1) > 2 and year < num_ly:
+                    year+=1
+                    str_ym_2 = str((year))+'-0'+str(i)
             else:
                 str_ym_1 = str(year)+'-'+str(i)
                 str_ym_2 = str((year+1))+'-'+str(i)
+                while str_ym_2 not in dct and ((num_ly - num_fy)+1) > 2 and year < num_ly:
+                    year +=1
+                    str_ym_2 = str((year))+'-'+str(i)
             if str_ym_1 in dct and str_ym_2 in dct:
                 sum_diff += (dct.get(str_ym_2) - dct.get(str_ym_1))
                 cont+=1
@@ -296,8 +305,8 @@ def compute_avg_monthly_difference(time_series, first_year=None, last_year=None)
 
     months_avg = []
     for line in diff_lst:
-        if line is None:
-            months_avg.append(line[0])
+        if line[0] is None:
+            months_avg.append(0)
         else:
-            months_avg.append(line[0]/line[1])
+            months_avg.append(round(line[0]/line[1],2))
     return months_avg
